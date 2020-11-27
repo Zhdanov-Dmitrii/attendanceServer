@@ -8,11 +8,15 @@ void Server::startServer()
 {
     if(this->listen(QHostAddress::Any, 1234))
     {
-        qDebug()<<"listening";
+        db = QSqlDatabase::addDatabase("QSQLITE");
+        db.setDatabaseName("D:\\project\\attendance\\temp.db");
+        if(db.open())
+        {
+            qDebug() << "no error";
+        }
     }
     else
     {
-        qDebug()<<"no Listtening";
     }
 }
 
@@ -58,6 +62,34 @@ void Server::sockReady()
             query += "%\"";
 
             qDebug() << query;
+
+            QByteArray res = "{\"type\":\"result select lecture\", \"results\":[";
+
+            QSqlQuery *queryDB = new QSqlQuery(db);
+            if(queryDB->exec(query))
+            {
+                while (queryDB->next())
+                {
+                    res.append("{\"lecture\":\""+queryDB->value(0).toString()+"\",");
+                    res.append("{\"teacher\":\""+queryDB->value(1).toString()+"\",");
+                    res.append("{\"team\":\""+queryDB->value(2).toString()+"\",");
+
+                    res.remove(res.length()-1,1);
+                    res.append("]}");
+
+
+                }
+                socket->write(res);
+                qDebug() << res;
+            }
+            else
+            {
+                qDebug() << "query is not success";
+            }
+
+
+
+
         }
     }
 }

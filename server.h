@@ -5,6 +5,8 @@
 #include <QTcpSocket>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QSqlDatabase>
+#include <QSqlQuery>
 
 class Server : public QTcpServer
 {
@@ -23,6 +25,7 @@ public slots:
 private:  
     QMap< qintptr, QTcpSocket*> listSocket;
     QByteArray data;
+    QSqlDatabase db;
 
     QJsonDocument doc;
     QJsonParseError docError;
