@@ -9,10 +9,14 @@ void Server::startServer()
     if(this->listen(QHostAddress::Any, 1234))
     {
         db = QSqlDatabase::addDatabase("QSQLITE");
-        db.setDatabaseName("D:\\project\\attendance\\temp.db");
+        db.setDatabaseName("D:\\project\\attendance\\test.db");
         if(db.open())
         {
             qDebug() << "no error";
+        }
+        else
+        {
+            qDebug() << "db is not open";
         }
     }
     else
@@ -32,8 +36,6 @@ void Server::incomingConnection(qintptr socketDescriptor)
     connect(socket, SIGNAL(disconnected()),this,SLOT(sockDisc()));
 
     qDebug()<<  socketDescriptor << " connected";
-
-    qDebug()<<socket->write("you are connected");
     qDebug() << "Send client connect status - yes";
 }
 
@@ -52,12 +54,12 @@ void Server::sockReady()
             QString teacher = doc.object().value("teacher").toString();
             QString team = doc.object().value("team").toString();
 
-            QString query = "SELECT lecture.name, lecture.teacher, team.name FROM (lecture JOIN team_lecture USING(id_lecture)) JOIN team USING(id_team) ";
-            query += "WHERE lecture.name like \"%";
+            QString query = "SELECT lesson.name, lesson.lecturer, GROUP_CONCAT(_group.name) as groups FROM lesson_group JOIN lesson USING(id_lesson) JOIN _group USING(id_group) GROUP BY lesson.name, lesson.lecturer ";
+            query += "HAVING lesson.name like \"%";
             query += lecture;
-            query += "%\" AND lecture.teacher like \"%";
+            query += "%\" AND lesson.lecturer like \"%";
             query += teacher;
-            query += "%\" AND team.name like \"%";
+            query += "%\" AND groups like \"%";
             query += team;
             query += "%\"";
 
@@ -71,14 +73,15 @@ void Server::sockReady()
                 while (queryDB->next())
                 {
                     res.append("{\"lecture\":\""+queryDB->value(0).toString()+"\",");
-                    res.append("{\"teacher\":\""+queryDB->value(1).toString()+"\",");
-                    res.append("{\"team\":\""+queryDB->value(2).toString()+"\",");
+                    res.append("\"teacher\":\""+queryDB->value(1).toString()+"\",");
+                    res.append("\"team\":\""+queryDB->value(2).toString()+"\"},");
 
-                    res.remove(res.length()-1,1);
-                    res.append("]}");
+
 
 
                 }
+                res.remove(res.length()-1,1);
+                res.append("]}");
                 socket->write(res);
                 qDebug() << res;
             }
@@ -86,9 +89,48 @@ void Server::sockReady()
             {
                 qDebug() << "query is not success";
             }
+        }
+        else if(doc.object().value("type").toString() == "select attendance") //{"type":"select attendance", "lessonName":"", "lessonLecturer":"", "groupName":""}
+        {
+            QString lessonName = doc.object().value("lessonName").toString();
+            QString lessonLecturer = doc.object().value("lessonLecturer").toString();
+            QString groupName = doc.object().value("groupName").toString();
+
+            QString query = "SELECT student.surname || ' ' || student.name || ' ' || student.patronymic as 'full_name', specific_lesson._date, splesson_student.status FROM splesson_student JOIN specific_lesson USING(id_specific_lesson) JOIN student USING(id_student) JOIN lesson USING(id_lesson) JOIN _group USING(id_group) JOIN lesson_group USING(id_lesson)";
+            query += "WHERE lesson.name like \"%";
+            query += lessonName;
+            query += "%\" AND lesson.lecturer like \"%";
+            query += lessonLecturer;
+            query += "%\" AND _group.name like \"%";
+            query += groupName;
+            query += "%\"";
+
+            qDebug() << query;
+
+            QByteArray res = "{\"type\":\"result select attendance\", \"results\":[";
+
+            QSqlQuery *queryDB = new QSqlQuery(db);
+            if(queryDB->exec(query))
+            {
+                while (queryDB->next())
+                {
+                    res.append("{\"fio\":\""+queryDB->value(0).toString()+"\",");
+                    res.append("\"date\":\""+queryDB->value(1).toString()+"\",");
+                    res.append("\"+-\":\""+queryDB->value(2).toString()+"\"},");
 
 
 
+
+                }
+                res.remove(res.length()-1,1);
+                res.append("]}");
+                socket->write(res);
+                qDebug() << res;
+            }
+            else
+            {
+                qDebug() << "query is not success";
+            }
 
         }
     }
