@@ -54,14 +54,14 @@ void Server::sockReady()
             QString teacher = doc.object().value("teacher").toString();
             QString team = doc.object().value("team").toString();
 
-            QString query = "SELECT lesson.name, lesson.lecturer, GROUP_CONCAT(_group.name) as groups FROM lesson_group JOIN lesson USING(id_lesson) JOIN _group USING(id_group) GROUP BY lesson.id_lesson ";
-            query += "HAVING lesson.name like \"%";
+            QString query = "SELECT name, lecturer, groups FROM (SELECT lesson.name as name, lesson.lecturer as lecturer, GROUP_CONCAT(_group.name) as groups FROM lesson_group JOIN lesson USING(id_lesson) JOIN _group USING(id_group) GROUP BY lesson.id_lesson ";
+            query += "HAVING lesson.name like '%";
             query += lecture;
-            query += "%\" AND lesson.lecturer like \"%";
+            query += "%' AND lesson.lecturer like '%";
             query += teacher;
-            query += "%\" AND groups like \"%";
+            query += "%' AND groups like '%";
             query += team;
-            query += "%\"";
+            query += "%') GROUP BY name, groups, lecturer";
 
             qDebug() << query;
 
