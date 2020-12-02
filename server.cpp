@@ -54,7 +54,7 @@ void Server::sockReady()
             QString teacher = doc.object().value("teacher").toString();
             QString team = doc.object().value("team").toString();
 
-            QString query = "SELECT lesson.name, lesson.lecturer, GROUP_CONCAT(_group.name) as groups FROM lesson_group JOIN lesson USING(id_lesson) JOIN _group USING(id_group) GROUP BY lesson.name, lesson.lecturer ";
+            QString query = "SELECT lesson.name, lesson.lecturer, GROUP_CONCAT(_group.name) as groups FROM lesson_group JOIN lesson USING(id_lesson) JOIN _group USING(id_group) GROUP BY lesson.id_lesson ";
             query += "HAVING lesson.name like \"%";
             query += lecture;
             query += "%\" AND lesson.lecturer like \"%";
@@ -96,14 +96,34 @@ void Server::sockReady()
             QString lessonLecturer = doc.object().value("lessonLecturer").toString();
             QString groupName = doc.object().value("groupName").toString();
 
-            QString query = "SELECT student.surname || ' ' || student.name || ' ' || student.patronymic as 'full_name', specific_lesson._date, splesson_student.status FROM splesson_student JOIN specific_lesson USING(id_specific_lesson) JOIN student USING(id_student) JOIN lesson USING(id_lesson) JOIN _group USING(id_group) JOIN lesson_group USING(id_lesson)";
-            query += "WHERE lesson.name like \"%";
-            query += lessonName;
-            query += "%\" AND lesson.lecturer like \"%";
-            query += lessonLecturer;
-            query += "%\" AND _group.name like \"%";
+
+            /*
+SELECT student.surname || ' ' || student.name || ' ' || student.patronymic as full_name, _group.name as 'group', specific_lesson._date, splesson_student.status, lesson.id_lesson
+FROM splesson_student JOIN specific_lesson USING(id_specific_lesson)
+JOIN student USING(id_student)
+JOIN lesson USING(id_lesson)
+JOIN _group USING(id_group)
+JOIN lesson_group USING(id_lesson)
+WHERE EXISTS (SELECT GROUP_CONCAT(_group.name) as groups FROM lesson_group JOIN lesson USING(id_lesson) JOIN _group USING(id_group) GROUP BY lesson.id_lesson HAVING
+ groups like '%%')
+AND lesson.name like '%%'
+AND lesson.lecturer like '%%'
+GROUP BY student.id_student, specific_lesson.id_specific_lesson
+
+*/
+
+
+
+            QString query = "SELECT student.surname || ' ' || student.name || ' ' || student.patronymic || ' (' || _group.name || ')' as full_name, specific_lesson._date || ' (' || lesson._time || ')' as date, splesson_student.status ";
+            query += "FROM splesson_student JOIN specific_lesson USING(id_specific_lesson) JOIN student USING(id_student) JOIN lesson USING(id_lesson) JOIN _group USING(id_group) JOIN lesson_group USING(id_lesson) ";
+
+            query += "WHERE EXISTS (SELECT GROUP_CONCAT(_group.name) as groups FROM lesson_group JOIN lesson USING(id_lesson) JOIN _group USING(id_group) GROUP BY lesson.id_lesson HAVING groups like '%";
             query += groupName;
-            query += "%\"";
+            query += "%') AND lesson.name like '%";
+            query += lessonName;
+            query += "%' AND lesson.lecturer like '%";
+            query += lessonLecturer;
+            query += "%' GROUP BY student.id_student, specific_lesson.id_specific_lesson ORDER BY date";
 
             qDebug() << query;
 
