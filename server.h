@@ -7,6 +7,7 @@
 #include <QJsonParseError>
 #include <QSqlDatabase>
 #include <QSqlQuery>
+#include <QDate>
 
 class Server : public QTcpServer
 {
@@ -29,6 +30,11 @@ private:
 
     QJsonDocument doc;
     QJsonParseError docError;
+
+
+    QString queryLesson(QString &lecture, QString &teacher, QString team) const;
+    QString queryAttendance(QString &groupName, QString &lessonLecturer, QString &lessonName) const;
+    QString queryUpdateStudentStatus(QString &fio, QString &lessonName, QString &lessonTime, QString &date, QString &status) const;
 };
 
 #endif // SERVER_H
