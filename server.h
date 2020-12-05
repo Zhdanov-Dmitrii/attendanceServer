@@ -8,6 +8,7 @@
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QDate>
+#include <QFile>
 
 class Server : public QTcpServer
 {

@@ -9,7 +9,7 @@ void Server::startServer()
     if(this->listen(QHostAddress::Any, 1234))
     {
         db = QSqlDatabase::addDatabase("QSQLITE");
-        db.setDatabaseName("D:\\project\\attendance\\test.db");
+        db.setDatabaseName("test.db");
         if(db.open())
         {
             qDebug() << "no error";
@@ -71,13 +71,11 @@ QString Server::queryAttendance(QString &groupName, QString &lessonLecturer, QSt
 
 QString Server::queryUpdateStudentStatus(QString &fio, QString &lessonName, QString &lessonTime, QString &date, QString &status) const
 {
-    QDate d;
-    d.fromString(date,"dd.MM.yyyy");
-
+    QDate d = QDate::fromString(date,"dd.MM.yyyy");
 
     QString query ="UPDATE splesson_student SET status = '";
     query += status;
-    query += "' WHERE id_student = (SELECT id_student FROM student WHERE student.surname || ' ' || student.name || ' ' || student.patronymic like '%";
+    query += "' WHERE id_student = (SELECT id_student FROM student JOIN _group USING(id_group) WHERE student.surname || ' ' || student.name || ' ' || student.patronymic || ' (' || _group.name || ')' like '%";
     query += fio;
     query += "%') AND id_specific_lesson = (SELECT specific_lesson.id_specific_lesson FROM specific_lesson JOIN lesson USING(id_lesson) WHERE lesson.name like '%";
     query += lessonName;
@@ -95,12 +93,15 @@ QString Server::queryUpdateStudentStatus(QString &fio, QString &lessonName, QStr
 void Server::sockReady()
 {
     QTcpSocket *socket = (QTcpSocket*)sender();
-    QByteArray data = socket->readLine();
-    qDebug() << data;
+    QByteArray data = socket->readAll();
     doc = QJsonDocument::fromJson(data, &docError);
+    qDebug() << data;
+
+
+
     if(docError.errorString().toUInt() == QJsonParseError::NoError)
     {
-        qDebug() << doc.object().value("type").toString();
+        qDebug() << (QString)doc.object().value("type").toString();
         //{"type":"select lecture", "lecture":"lecture", "teacher":"teacher", "team":"team"}
         if(doc.object().value("type").toString() == "select lecture")
         {
@@ -125,12 +126,14 @@ void Server::sockReady()
                 res.remove(res.length()-1,1);
                 res.append("]}");
                 socket->write(res);
+                qDebug() << "query is success";
             }
             else
             {
                 qDebug() << "query is not success";
                 qDebug() << query;
             }
+            delete queryDB;
         }
         else if(doc.object().value("type").toString() == "select attendance") //{"type":"select attendance", "lessonName":"", "lessonLecturer":"", "groupName":""}
         {
@@ -156,14 +159,14 @@ void Server::sockReady()
                 res.remove(res.length()-1,1);
                 res.append("]}");
                 socket->write(res);
-                qDebug() << res;
+                qDebug() << "query is success";
             }
             else
             {
                 qDebug() << "query is not success";
                 qDebug() << query;
             }
-
+            delete queryDB;
         }
         else if(doc.object().value("type").toString() == "update student status")
         {
@@ -182,6 +185,19 @@ void Server::sockReady()
                 qDebug() << "query is not success";
                 qDebug() << query;
             }
+            delete queryDB;
+        }
+        else if(doc.object().value("type").toString() == "face recognition")//{"type":"face recognition", "data":"
+        {
+            QByteArray dataFoto = doc.object().value("data").toString().toUtf8();
+            QFile foto("foto.png");
+            if(foto.open(QFile::WriteOnly))
+            {
+                qDebug() <<"file is not open";
+                return;
+            }
+            foto.write(dataFoto);
+
         }
     }
 }
