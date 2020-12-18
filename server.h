@@ -9,6 +9,13 @@
 #include <QSqlQuery>
 #include <QDate>
 #include <QFile>
+#include <QMap>
+#include <QVector>
+#include <QProcess>
+#include <QThread>
+
+
+
 
 class Server : public QTcpServer
 {
@@ -23,7 +30,6 @@ public slots:
     void sockReady();
     void sockDisc();
 
-
 private:  
     QMap< qintptr, QTcpSocket*> listSocket;
     QByteArray data;
@@ -36,6 +42,7 @@ private:
     QString queryLesson(QString &lecture, QString &teacher, QString team) const;
     QString queryAttendance(QString &groupName, QString &lessonLecturer, QString &lessonName) const;
     QString queryUpdateStudentStatus(QString &fio, QString &lessonName, QString &lessonTime, QString &date, QString &status) const;
+    QString queryListStudent(QString &lessonName, QString &lessonTime, QString &audit);
 };
 
 #endif // SERVER_H
