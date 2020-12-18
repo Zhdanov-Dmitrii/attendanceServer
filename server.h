@@ -42,7 +42,11 @@ private:
     QString queryLesson(QString &lecture, QString &teacher, QString team) const;
     QString queryAttendance(QString &groupName, QString &lessonLecturer, QString &lessonName) const;
     QString queryUpdateStudentStatus(QString &fio, QString &lessonName, QString &lessonTime, QString &date, QString &status) const;
-    QString queryListStudent(QString &lessonName, QString &lessonTime, QString &audit);
+    QString queryListStudent(QString &lessonName, QString &lessonTime, QString &audit) const;
+    QString queryInsertFoto(QString &lessonName, QString &lessonTime, QString &audit, QString &foto) const;
+    QString queryUpdateFoto(QString &lessonName,QString &lessonTime, QString &audit, QString &foto) const;
+    QString queryInsertStudentStatus(QString &lessonName,QString &lessonTime, QString &audit, QString &foto);
+
 };
 
 #endif // SERVER_H

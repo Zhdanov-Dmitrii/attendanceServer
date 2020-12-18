@@ -90,7 +90,7 @@ QString Server::queryUpdateStudentStatus(QString &fio, QString &lessonName, QStr
     return query;
 }
 
-QString Server::queryListStudent(QString &lessonName, QString &lessonTime, QString &audit)
+QString Server::queryListStudent(QString &lessonName, QString &lessonTime, QString &audit) const
 {
     QDate d = QDate::currentDate();
 
@@ -103,19 +103,75 @@ QString Server::queryListStudent(QString &lessonName, QString &lessonTime, QStri
     query += lessonName;
     query += "%' AND lesson.day_of_week like '%1";
     //query += QString::number(d.dayOfWeek());
-    query += "%'";
+    query += "%';";
 
     return query;
 }
 
+QString Server::queryInsertFoto(QString &lessonName, QString &lessonTime, QString &audit, QString &foto) const
+{
+    QDate d = QDate::currentDate();
 
+
+    QString query ="INSERT INTO specific_lesson (id_lesson) SELECT lesson.id_lesson FROM lesson WHERE lesson.name like '%";
+    query += lessonName;
+    query += "%' AND lesson._time like '%";
+    query += lessonTime;
+    query += "%' AND lesson.auditorium like '%";
+    query += audit; //аудитория
+    query += "%' AND lesson.day_of_week like '%1";
+    //query += QString::number(d.dayOfWeek());
+    query += "%';";
+    /*
+    query += "UPDATE specific_lesson SET photo = '";
+    query += foto; //фото с пары
+    query += "', _date = strftime('%d.%m.%Y','now') WHERE _date is NULL;";
+    */
+    return query;
+}
+
+QString Server::queryUpdateFoto(QString &lessonName,QString &lessonTime, QString &audit, QString &foto) const
+{
+    QDate d = QDate::currentDate();
+
+
+    QString query ="UPDATE specific_lesson SET photo = '";
+    query += foto; // фото с пары
+    query += "' WHERE id_lesson = (SELECT id_lesson FROM lesson WHERE lesson.name like '%";
+    query += lessonName;
+    query += "%' AND lesson._time like '%";
+    query += lessonTime;
+    query += "%' AND lesson.auditorium like '%";
+    query += audit; //аудитория
+    query += "%' AND lesson.day_of_week like '%1";
+    //query += QString::number(d.dayOfWeek());
+    query += "%') AND _date = strftime('%d.%m.%Y','now');";
+
+    return query;
+}
+
+QString Server::queryInsertStudentStatus(QString &lessonName,QString &lessonTime, QString &audit, QString &foto)
+{
+    QDate d = QDate::currentDate();
+
+
+    QString query ="INSERT INTO splesson_student (id_specific_lesson) SELECT specific_lesson.id_specific_lesson FROM specific_lesson JOIN lesson USING(id_lesson) WHERE lesson.name like '%";
+    query += lessonName;
+    query += "%' AND lesson._time like '%";
+    query += lessonTime;
+    query += "%' AND lesson.auditorium like '%";
+    query += audit; //аудитория
+    query += "%' AND lesson.day_of_week like '%1";
+    //query += QString::number(d.dayOfWeek());
+    query += "%' AND specific_lesson._date = strftime('%d.%m.%Y','now');";
+
+    return query;
+}
 
 void Server::sockReady()
 {
     QTcpSocket *socket = (QTcpSocket*)sender();
     QByteArray data = socket->readAll();
-
-
 
     QByteArray dataFoto = data;
 
@@ -213,7 +269,23 @@ void Server::sockReady()
         }
         else if(doc.object().value("type").toString() == "face recognition")//{"type":"face recognition", "data":"
         {
-            QFile foto("D:\\project\\attendance\\build-attendanceServer-Desktop_x86_windows_msys_pe_64bit-Debug\\debug\\foto.jpg");
+
+
+            bool isFirst = true;
+            if(doc.object().value("lesson name").toString() == "update")
+                isFirst = false;
+
+            QString lessonName = doc.object().value("lesson name").toString();
+            QString time = doc.object().value("time").toString();
+            QString audit = doc.object().value("audit").toString();
+
+            QString querylist = queryListStudent(lessonName, time, audit);
+            QSqlQuery* queryBD = new QSqlQuery(db);
+
+
+            QString pathFoto = "D:\\project\\attendance\\build-attendanceServer-Desktop_x86_windows_msys_pe_64bit-Debug\\debug\\fotoLesson\\"+time[0]+".jpg";
+            qDebug() << pathFoto;
+            QFile foto(pathFoto);
             if(!foto.open(QIODevice::WriteOnly))
             {
                 qDebug() <<"file is not open";
@@ -222,22 +294,15 @@ void Server::sockReady()
             foto.write(dataFoto);
             foto.close();
 
-            QString lessonName = doc.object().value("lesson name").toString();
-            QString time = doc.object().value("time").toString();
-            QString audit = doc.object().value("audit").toString();
-
-            QString query = queryListStudent(lessonName, time, audit);
-            QSqlQuery* queryBD = new QSqlQuery(db);
-
 
             QVector<QString> name;
             QVector<QString> group;
             QMap<QString, int> listStudent;
             QVector<QVector<int>> locate;
 
-            //выполнение запроса
+            //получаем список студентов
             int k = 0;
-            if(queryBD->exec(query))
+            if(queryBD->exec(querylist))
             {
                 while (queryBD->next())
                 {
@@ -249,9 +314,38 @@ void Server::sockReady()
                 }
             }
 
+            QString query;
+            if(isFirst)
+            {
+                query = queryInsertFoto(lessonName, time, audit, pathFoto);
+                if(!queryBD->exec(query))
+                    qDebug() << query;
+
+                query = "UPDATE specific_lesson SET photo = '";
+                query += pathFoto; //фото с пары
+                query += "', _date = strftime('%d.%m.%Y','now') WHERE _date is NULL;";
+                if(!queryBD->exec(query))
+                    qDebug() << query;
+
+                for(auto it = listStudent.begin(); it != listStudent.end();it++)
+                {
+                    QString path = it.key();
+                    query = queryInsertStudentStatus(lessonName, time, audit, path);
+                    if(!queryBD->exec(query))
+                        qDebug() << query;
+
+                    query = "UPDATE splesson_student SET id_student = (SELECT id_student FROM student WHERE student.photo like '%";
+                    query += it.key();
+                    query += "%' ) WHERE id_student is NULL;";
+                    if(!queryBD->exec(query))
+                           qDebug() << query;
+                }
+            }
+
 
             //открытие py-скрипта
             QProcess *qprocess = new QProcess(this);
+
             qprocess->start("cmd");
 
             if(!qprocess->waitForStarted())
@@ -259,21 +353,26 @@ void Server::sockReady()
 
             QString pyCommand("python D:\\project\\attendance\\build-attendanceServer-Desktop_x86_windows_msys_pe_64bit-Debug\\main.py \n"); //try with out " \n" also...
             qprocess->write(pyCommand.toLatin1().data());
-
-            qprocess->write(QString::number(k).toLatin1()+'\n');
+            qprocess->waitForBytesWritten();
+            qprocess->write(QString::number(listStudent.size()).toLatin1());
+            qprocess->write("\n");
             for(auto it = listStudent.begin(); it != listStudent.end(); it++)
             {
-                qprocess->write(it.key().toLatin1()+'\n');
+                qprocess->write(it.key().toLatin1().data());
+                qprocess->write("\n");
                 qprocess->waitForBytesWritten();
             }
-            qprocess->write("D:\\project\\attendance\\build-attendanceServer-Desktop_x86_windows_msys_pe_64bit-Debug\\debug\\foto.jpg\n");
+            qprocess->write(pathFoto.toLatin1().data()); qprocess->write("\n");
             qprocess->waitForBytesWritten();
             if(!qprocess->waitForReadyRead(30000))
             {
                 qDebug() << "not read";
                 return;
             }
+            qprocess->waitForReadyRead();
 
+            qDebug() << qprocess->readAllStandardError();
+            qDebug() << qprocess->readAllStandardOutput();
 
 
             //
@@ -283,23 +382,38 @@ void Server::sockReady()
             while(!fres.open(QIODevice::ReadOnly | QIODevice::Text))
             {
                 QThread::sleep(3);
+                qDebug() << "123123123123123";
             }
             k = fres.readLine().toInt();
 
             for(int i = 0; i < k; i++)
             {
                 QString t = fres.readLine();
-                QStringList tt = t.split(' ');
+                QStringList tt = t.split("/-\\");
                 qDebug() << name[listStudent[tt[0]]];
                 res += "{\"name\":\"" + name[listStudent[tt[0]]] + "\", \"group\":\"" + group[listStudent[tt[0]]]+"\", \"status\":\"+\"},";
+
+                QString fio = name[listStudent[tt[0]]] + " (" + group[listStudent[tt[0]]]+")";
+                QString date = QDate::currentDate().toString("dd.MM.yyyy");
+                QString st = "+";
+                query =  queryUpdateStudentStatus(fio, lessonName, time, date, st);
+                if(!queryBD->exec(query))
+                    qDebug() << "error";
                 listStudent.remove(tt[0]);
             }
 
             fres.close();
-            fres.remove();
 
             for(auto it = listStudent.begin(); it != listStudent.end(); it++)
+            {
                 res += "{\"name\":\"" + name[it.value()] + "\", \"group\":\"" + group[it.value()]+"\", \"status\":\"-\"},";
+                QString fio = name[it.value()] + " (" + group[it.value()] +")";
+                QString date = QDate::currentDate().toString("dd.MM.yyyy");
+                QString st = "-";
+                query = queryUpdateStudentStatus(fio, lessonName, time, date, st);
+                if(!queryBD->exec(query))
+                    qDebug() << "error";
+            }
 
             res.remove(res.size()-1,1);
             res += "]}";
@@ -320,68 +434,4 @@ void Server::sockDisc()
     qDebug()<<"disconnect ";
     socket->deleteLater();
 }
-/*
-вставка фото в бд
-{
-QDate d = QDate::fromString(date,"dd.MM.yyyy");
 
-
-QString query ="INSERT INTO specific_lesson (id_lesson) SELECT lesson.id_lesson FROM lesson WHERE lesson.name like '%";
-query += lessonName;
-query += "%' AND lesson._time like '%";
-query += lessonTime;
-query += "%' AND lesson.auditorium like '%";
-query += ; //аудитория
-query += "%' AND lesson.day_of_week like '%";
-query += QString::number(d.dayOfWeek());
-query += "%'; UPDATE specific_lesson SET photo = '";
-query += ; //фото с пары
-query += "', _date = strftime('%d.%m.%Y','now') WHERE _date is NULL"
-
-return query;
-}
-
-добавление автоматического минуса в статусе
-{
-QDate d = QDate::fromString(date,"dd.MM.yyyy");
-
-
-QString query ="INSERT INTO splesson_student (id_specific_lesson) SELECT specific_lesson.id_specific_lesson FROM specific_lesson JOIN lesson USING(id_lesson) WHERE lesson.name like '%";
-query += lessonName;
-query += "%' AND lesson._time like '%";
-query += lessonTime;
-query += "%' AND lesson.auditorium like '%";
-query += ; //аудитория
-query += "%' AND lesson.day_of_week like '%";
-query += QString::number(d.dayOfWeek());
-query += "%' AND specific_lesson._date = strftime('%d.%m.%Y','now'); UPDATE splesson_student SET id_student = (SELECT id_student FROM student WHERE student.photo like '%";
-query += ; //фото студента
-query += "%' ) WHERE id_student is NULL;"
-
-return query;
-}
-
-
-изменение статуса по фото
-
-{
-QDate d = QDate::fromString(date,"dd.MM.yyyy");
-
-
-QString query ="UPDATE splesson_student SET status = '";
-query += status;
-query += "' WHERE id_student = (SELECT id_student FROM student WHERE student.photo like '%";
-query += ; //адрес фото
-query += "%') AND id_specific_lesson = (SELECT specific_lesson.id_specific_lesson FROM specific_lesson JOIN lesson USING(id_lesson) WHERE lesson.name like '%";
-query += lessonName;
-query += "%' AND lesson._time like '%";
-query += lessonTime;
-query += "%' AND lesson.day_of_week like '%";
-query += QString::number(d.dayOfWeek());
-query += "%' AND specific_lesson._date = strftime('%d.%m.%Y','now') AND lesson.auditorium like '%"
-query += ; //аудитория
-query += "%')";
-
-return query;
-}
-*/
