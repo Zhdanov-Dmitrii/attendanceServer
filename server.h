@@ -46,6 +46,8 @@ private:
     QString queryInsertFoto(QString &lessonName, QString &lessonTime, QString &audit, QString &foto) const;
     QString queryUpdateFoto(QString &lessonName,QString &lessonTime, QString &audit, QString &foto) const;
     QString queryInsertStudentStatus(QString &lessonName,QString &lessonTime, QString &audit, QString &foto);
+    QString queryInfoLesson(QString &date, QString &lessonName, QString &lecturer, QString &lessonTime);
+    QString queryLogin(QString &login, QString &password);
 
 };
 

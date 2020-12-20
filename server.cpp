@@ -41,14 +41,14 @@ void Server::incomingConnection(qintptr socketDescriptor)
 
 QString Server::queryLesson(QString &lecture, QString &teacher, QString team) const
 {
-    QString query = "SELECT name, lecturer, groups FROM (SELECT lesson.name as name, lesson.lecturer as lecturer, GROUP_CONCAT(_group.name) as groups FROM lesson_group JOIN lesson USING(id_lesson) JOIN _group USING(id_group) GROUP BY lesson.id_lesson ";
-    query += "HAVING lesson.name like '%";
+
+    QString query ="SELECT name, lecturer, groups FROM (SELECT lesson.name as name, lecturer.name_lecturer as lecturer, GROUP_CONCAT(_group.name) as groups FROM lesson_group JOIN lesson USING(id_lesson) JOIN _group USING(id_group) JOIN lecturer USING(id_lecturer) GROUP BY lesson.id_lesson HAVING groups like '%";
+    query += team; // группы
+    query += "%' AND lesson.name like '%";
     query += lecture;
-    query += "%' AND lesson.lecturer like '%";
-    query += teacher;
-    query += "%' AND groups like '%";
-    query += team;
-    query += "%') GROUP BY name, groups, lecturer;";
+    query += "%' AND lecturer.name_lecturer like '%";
+    query += teacher; // препод
+    query += "%') GROUP BY name, groups, lecturer";
 
     return query;
 }
@@ -56,13 +56,13 @@ QString Server::queryLesson(QString &lecture, QString &teacher, QString team) co
 QString Server::queryAttendance(QString &groupName, QString &lessonLecturer, QString &lessonName) const
 {
     QString query = "SELECT student.surname || ' ' || student.name || ' ' || student.patronymic || ' (' || _group.name || ')' as full_name, specific_lesson._date || ' (' || lesson._time || ')' as date, splesson_student.status ";
-    query += "FROM splesson_student JOIN specific_lesson USING(id_specific_lesson) JOIN student USING(id_student) JOIN lesson USING(id_lesson) JOIN _group USING(id_group) JOIN lesson_group USING(id_lesson) ";
+    query += "FROM splesson_student JOIN specific_lesson USING(id_specific_lesson) JOIN student USING(id_student) JOIN lesson USING(id_lesson) JOIN _group USING(id_group) JOIN lesson_group USING(id_lesson) JOIN lecturer USING(id_lecturer) ";
 
-    query += "WHERE EXISTS (SELECT GROUP_CONCAT(_group.name) as groups FROM lesson_group JOIN lesson USING(id_lesson) JOIN _group USING(id_group) GROUP BY lesson.id_lesson HAVING groups like '%";
+    query += "WHERE EXISTS (SELECT GROUP_CONCAT(_group.name) as groups FROM lesson_group JOIN lesson USING(id_lesson) JOIN _group USING(id_group) JOIN lecturer USING(id_lecturer) GROUP BY lesson.id_lesson HAVING groups like '%";
     query += groupName;
     query += "%') AND lesson.name like '%";
     query += lessonName;
-    query += "%' AND lesson.lecturer like '%";
+    query += "%' AND lecturer.name_lecturer like '%";
     query += lessonLecturer;
     query += "%' GROUP BY student.id_student, specific_lesson.id_specific_lesson ORDER BY date";
 
@@ -75,17 +75,17 @@ QString Server::queryUpdateStudentStatus(QString &fio, QString &lessonName, QStr
 
     QString query ="UPDATE splesson_student SET status = '";
     query += status;
-    query += "' WHERE id_student = (SELECT id_student FROM student JOIN _group USING(id_group) WHERE student.surname || ' ' || student.name || ' ' || student.patronymic || ' (' || _group.name || ')' like '%";
+    query += "' WHERE id_student = (SELECT id_student FROM student JOIN _group USING(id_group) WHERE student.surname || ' ' || student.name || ' ' || student.patronymic || ' (' || _group.name || ')' like '";
     query += fio;
-    query += "%') AND id_specific_lesson = (SELECT specific_lesson.id_specific_lesson FROM specific_lesson JOIN lesson USING(id_lesson) WHERE lesson.name like '%";
+    query += "') AND id_specific_lesson = (SELECT specific_lesson.id_specific_lesson FROM specific_lesson JOIN lesson USING(id_lesson) WHERE lesson.name like '";
     query += lessonName;
-    query += "%' AND lesson._time like '%";
+    query += "' AND lesson._time like '";
     query += lessonTime;
-    query += "%' AND lesson.day_of_week like '%";
+    query += "' AND lesson.day_of_week like '";
     query += QString::number(d.dayOfWeek());
-    query += "%' AND specific_lesson._date like '%";
+    query += "' AND specific_lesson._date like '";
     query += date;
-    query += "%');";
+    query += "');";
 
     return query;
 }
@@ -101,8 +101,8 @@ QString Server::queryListStudent(QString &lessonName, QString &lessonTime, QStri
     query += audit;
     query += "%' AND lesson.name like '%";
     query += lessonName;
-    query += "%' AND lesson.day_of_week like '%1";
-    //query += QString::number(d.dayOfWeek());
+    query += "%' AND lesson.day_of_week like '";
+    query += QString::number(d.dayOfWeek());
     query += "%';";
 
     return query;
@@ -113,15 +113,15 @@ QString Server::queryInsertFoto(QString &lessonName, QString &lessonTime, QStrin
     QDate d = QDate::currentDate();
 
 
-    QString query ="INSERT INTO specific_lesson (id_lesson) SELECT lesson.id_lesson FROM lesson WHERE lesson.name like '%";
+    QString query ="INSERT INTO specific_lesson (id_lesson) SELECT lesson.id_lesson FROM lesson WHERE lesson.name like '";
     query += lessonName;
-    query += "%' AND lesson._time like '%";
+    query += "' AND lesson._time like '";
     query += lessonTime;
-    query += "%' AND lesson.auditorium like '%";
+    query += "' AND lesson.auditorium like '";
     query += audit; //аудитория
-    query += "%' AND lesson.day_of_week like '%1";
-    //query += QString::number(d.dayOfWeek());
-    query += "%';";
+    query += "' AND lesson.day_of_week like '";
+    query += QString::number(d.dayOfWeek());
+    query += "';";
     /*
     query += "UPDATE specific_lesson SET photo = '";
     query += foto; //фото с пары
@@ -143,8 +143,8 @@ QString Server::queryUpdateFoto(QString &lessonName,QString &lessonTime, QString
     query += lessonTime;
     query += "%' AND lesson.auditorium like '%";
     query += audit; //аудитория
-    query += "%' AND lesson.day_of_week like '%1";
-    //query += QString::number(d.dayOfWeek());
+    query += "%' AND lesson.day_of_week like '%";
+    query += QString::number(d.dayOfWeek());
     query += "%') AND _date = strftime('%d.%m.%Y','now');";
 
     return query;
@@ -161,9 +161,38 @@ QString Server::queryInsertStudentStatus(QString &lessonName,QString &lessonTime
     query += lessonTime;
     query += "%' AND lesson.auditorium like '%";
     query += audit; //аудитория
-    query += "%' AND lesson.day_of_week like '%1";
-    //query += QString::number(d.dayOfWeek());
+    query += "%' AND lesson.day_of_week like '%";
+    query += QString::number(d.dayOfWeek());
     query += "%' AND specific_lesson._date = strftime('%d.%m.%Y','now');";
+
+    return query;
+}
+
+QString Server::queryInfoLesson(QString &date, QString &lessonName, QString &lecturer, QString &lessonTime)
+{
+
+    QString query ="SELECT lesson.auditorium, specific_lesson.photo FROM specific_lesson JOIN lesson USING(id_lesson) JOIN lecturer USING(id_lecturer) WHERE specific_lesson._date like '%";
+    query += date; // дата
+    query += "%' AND lesson.name like '%";
+    query += lessonName;
+    query += "%' AND lecturer.name_lecturer like '%";
+    query += lecturer; // препод
+    query += "%' AND lesson._time like '%";
+    query += lessonTime;
+    query += "%'";
+
+
+    return query;
+}
+
+QString Server::queryLogin(QString &login, QString &password)
+{
+    QString query = "SELECT lecturer.name_lecturer FROM lecturer WHERE lecturer.login like '";
+    query += login; // login
+
+    query += "' AND lecturer.password like '";
+    query += password; // password
+    query += "'";
 
     return query;
 }
@@ -269,8 +298,6 @@ void Server::sockReady()
         }
         else if(doc.object().value("type").toString() == "face recognition")//{"type":"face recognition", "data":"
         {
-
-
             bool isFirst = true;
             if(doc.object().value("lesson name").toString() == "update")
                 isFirst = false;
@@ -283,7 +310,7 @@ void Server::sockReady()
             QSqlQuery* queryBD = new QSqlQuery(db);
 
 
-            QString pathFoto = "D:\\project\\attendance\\build-attendanceServer-Desktop_x86_windows_msys_pe_64bit-Debug\\debug\\fotoLesson\\"+time[0]+".jpg";
+            QString pathFoto = "D:\\\\project\\\\attendance\\\\build-attendanceServer-Desktop_x86_windows_msys_pe_64bit-Debug\\\\debug\\\\fotoLesson\\\\"+time[0]+".jpg";
             qDebug() << pathFoto;
             QFile foto(pathFoto);
             if(!foto.open(QIODevice::WriteOnly))
@@ -397,12 +424,14 @@ void Server::sockReady()
                 QString date = QDate::currentDate().toString("dd.MM.yyyy");
                 QString st = "+";
                 query =  queryUpdateStudentStatus(fio, lessonName, time, date, st);
+                qDebug() << query;
                 if(!queryBD->exec(query))
                     qDebug() << "error";
                 listStudent.remove(tt[0]);
             }
 
             fres.close();
+            fres.remove();
 
             for(auto it = listStudent.begin(); it != listStudent.end(); it++)
             {
@@ -425,7 +454,62 @@ void Server::sockReady()
 
             delete queryBD;
         }
+        else if(doc.object().value("type").toString() == "select lesson info")//{"type":"select lesson info","date":"","lessonName":"",,"lecturer":"", "time":""}
+        {
+            QString date = doc.object().value("date").toString(),
+                    lessonName = doc.object().value("lessonName").toString(),
+                    lecturer = doc.object().value("lecturer").toString(),
+                    lessonTime = doc.object().value("time").toString();
+
+            QByteArray res = "{\"type\":\"result select lesson info\", ";
+
+            QString query = queryInfoLesson(date, lessonName, lecturer, lessonTime);
+            QSqlQuery *queryDB = new QSqlQuery(db);
+            if(queryDB->exec(query))
+            {
+                while (queryDB->next())
+                {
+                    qDebug() << queryDB->value(1).toString() ;
+                    res+="\"audit\":\"" + queryDB->value(0).toString() + "\", \"foto\":\""+queryDB->value(1).toString()+"\"}";
+                }
+            }
+            else
+                qDebug() << query;
+
+            socket->write(res);
+
+            delete queryDB;
+        }
+        else if(doc.object().value("type").toString() == "login")
+        {
+            QString login = doc.object().value("login").toString(),
+                    password = doc.object().value("password").toString();
+            QByteArray res = "{\"type\":\"result login\", \"result\":\"";
+
+            QString query = queryLogin(login, password);
+            qDebug() << query;
+            QSqlQuery *queryDB = new QSqlQuery(db);
+            if(queryDB->exec(query))
+            {
+                bool b = false;
+                while (queryDB->next())
+                {
+                   b = true;
+                }
+
+                if(b)
+                    res+="1";
+                else
+                    res+="0";
+
+                res += "\"}";
+                socket->write(res);
+                delete queryDB;
+            }
+        }
     }
+    data.clear();
+    dataFoto.clear();
 }
 
 void Server::sockDisc()
